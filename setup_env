@@ -20,3 +20,4 @@ export CPU2006DATA=${PWD}/benchmarks/spec_cpu2006/data
 # zsim
 export ZSIMPATH=${PWD}/zsim
 export ZSIMHOOKS=${PWD}/zsim/misc/hooks
+export PATH=/bin:$PATH
