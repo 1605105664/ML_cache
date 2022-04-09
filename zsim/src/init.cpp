@@ -55,6 +55,7 @@
 #include "ooo_core.h"
 #include "part_repl_policies.h"
 #include "rrip_repl.h"
+#include "rlr_repl.h"
 #include "pin_cmd.h"
 #include "prefetcher.h"
 #include "proc_stats.h"
@@ -172,7 +173,7 @@ BaseCache* BuildCacheBank(Config& config, const string& prefix, g_string& name, 
         // add your SRRIP construction code here
 
     } else if (replType == "RLR") {
-        rp = new RandReplPolicy(candidates);
+        rp = new RLRReplPolicy(numLines);
     } else if (replType == "WayPart" || replType == "Vantage" || replType == "IdealLRUPart") {
         if (replType == "WayPart" && arrayType != "SetAssoc") panic("WayPart replacement requires SetAssoc array");
 
