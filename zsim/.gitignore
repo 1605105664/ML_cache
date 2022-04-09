@@ -1,3 +1,7 @@
 build
 outputs
 .sconsign.dblite
+heartbeat
+out.cfg
+*.h5
+zsim.out
