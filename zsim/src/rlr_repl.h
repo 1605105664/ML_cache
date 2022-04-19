@@ -17,16 +17,18 @@ class RLRReplPolicy : public ReplPolicy {
 
         bool hit;
         uint32_t RD;
-        uint32_t numLines;
 		uint32_t accum;
-		uint32_t hitCounter;
+		uint32_t missCounter;
+		
+		uint32_t ways;
+		uint32_t numLines;
 
 
 
     public:
         // add member methods here, refer to repl_policies.h
-        explicit RLRReplPolicy(uint32_t _numLines) : hit(true), RD(0), numLines(_numLines), accum(0), hitCounter(0){
-			//info("nlines %d",numLines);
+        explicit RLRReplPolicy(uint32_t _numLines) : hit(true), RD(0), accum(0), missCounter(0), numLines(_numLines){
+			//info("nlines %d", numLines);
             ageCounter = gm_calloc<uint64_t>(numLines);
             hitReg = gm_calloc<uint64_t>(numLines);
             typeReg = gm_calloc<uint64_t>(numLines);
@@ -39,49 +41,58 @@ class RLRReplPolicy : public ReplPolicy {
         }
 		
 		void update(uint32_t id, const MemReq* req) {
+			bool isPrefetch = req->flags & MemReq::PREFETCH;
+			//info("isPrefetch %d", isPrefetch);
+			
+			if (isPrefetch) typeReg[id]=0;
+			else typeReg[id]=1;
+			
 			hitReg[id] = hit;
-			if(hit) {
-				accum += ageCounter[id];
-				for(uint32_t i =0; i < numLines; i++)
-					if(ageCounter[i]<31) ageCounter[i]++;
-				ageCounter[id]=0;
-				hitCounter++;
-			}
-			if(hitCounter==32) {
-				RD = accum >> 4;
-				accum = 0;
-				hitCounter = 0;
-			}
 			hit = true;
 		}
 		
 		void replaced(uint32_t id) {
 			hit = false;
-			ageCounter[id] = 0;
-			typeReg[id] = 0;
+			accum += ageCounter[id];
+			//ageCounter[id] = 0;
 		}
 		
 		template <typename C> inline uint32_t rank(const MemReq* req, C cands) {
+			missCounter++;
+			if(missCounter==8) {
+				for(auto ci = cands.begin(); ci != cands.end(); ci.inc())
+					if(ageCounter[*ci]<4)
+						ageCounter[*ci]++;
+			
+				RD = accum >> 1;
+				accum = 0;
+				missCounter = 0;
+			}
+			
+			
 			uint32_t bestCand = -1;
 			uint32_t Pa,Ph,Pt = 0;
-			uint64_t Pline;
+			uint32_t Pline;
 			uint32_t minP = (1>>31)-1;
-			uint32_t i =0;
 			
 			for (auto ci = cands.begin(); ci != cands.end(); ci.inc()) {
-				if(ageCounter[i] > RD)Pa = 0;
+				if(ageCounter[*ci] > RD)Pa = 0;
 				else Pa = 8;
 
-				if(hitReg[i]>0)Ph = 1;
+				if(hitReg[*ci]>0) Ph = 1;
 				else Ph = 0;
+				
+				if(typeReg[*ci]>0) Pt = 1;
+				else Pt = 0;
+				
 				Pline = Pa+Pt+Ph;
+				//info("Cand %d have priority of %d", *ci, Pline);
 				if(Pline < minP) {
 					minP = Pline;
 					bestCand = (*ci);
 				}
-				i++;
 			}
-			//info("Cand %d", bestCand);
+			//info("Cand %d with priority %d are evicted.", bestCand, minP);
 			return bestCand;
 		}
 		
