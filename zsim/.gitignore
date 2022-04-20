@@ -4,4 +4,6 @@ outputs
 heartbeat
 out.cfg
 *.h5
-zsim.out
+*.out
+SPECtestformatmodifier_z.txt
+benchADM.par

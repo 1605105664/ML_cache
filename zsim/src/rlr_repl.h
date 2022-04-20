@@ -11,27 +11,34 @@ memreq struct definition in memory_hierarchy.h, contains prefetch info
 //RLR
 class RLRReplPolicy : public ReplPolicy {
     protected:
-        uint64_t* ageCounter;
-        uint64_t* hitReg;
-        uint64_t* typeReg;
+		//per-cache-line variables
+        uint32_t* ageCounter;
+        bool* hitReg;
+        bool* typeReg;
 
-        bool hit;
-        uint32_t RD;
-		uint32_t accum;
-		uint32_t missCounter;
+		//per-set variables
+		uint32_t* RD;
+		uint32_t* accum;
+		uint32_t* missCounter;
 		
-		uint32_t ways;
+		//constants
+		bool hit;
 		uint32_t numLines;
+		uint32_t candidates;
 
 
 
     public:
         // add member methods here, refer to repl_policies.h
-        explicit RLRReplPolicy(uint32_t _numLines) : hit(true), RD(0), accum(0), missCounter(0), numLines(_numLines){
-			//info("nlines %d", numLines);
-            ageCounter = gm_calloc<uint64_t>(numLines);
-            hitReg = gm_calloc<uint64_t>(numLines);
-            typeReg = gm_calloc<uint64_t>(numLines);
+        explicit RLRReplPolicy(uint32_t _numLines, uint32_t _candidates) : hit(true), numLines(_numLines), candidates(_candidates){
+			//info("nlines:%d ncand:%d", numLines, candidates);
+            ageCounter = gm_calloc<uint32_t>(numLines);
+            hitReg = gm_calloc<bool>(numLines);
+            typeReg = gm_calloc<bool>(numLines);
+			
+			RD = gm_calloc<uint32_t>(numLines/candidates);
+			accum = gm_calloc<uint32_t>(numLines/candidates);
+			missCounter = gm_calloc<uint32_t>(numLines/candidates);
         }
 		
         ~RLRReplPolicy() {
@@ -53,20 +60,25 @@ class RLRReplPolicy : public ReplPolicy {
 		
 		void replaced(uint32_t id) {
 			hit = false;
-			accum += ageCounter[id];
-			//ageCounter[id] = 0;
+			accum[id/candidates] += ageCounter[id];
+			ageCounter[id] = 0;
 		}
 		
 		template <typename C> inline uint32_t rank(const MemReq* req, C cands) {
-			missCounter++;
-			if(missCounter==8) {
+			assert(*cands.end()-*cands.begin()==candidates);
+			uint32_t setIdx = *cands.begin()/candidates;
+			//info("Handling cache miss at set %d", setIdx);
+			//info("r:%d a:%d m:%d", RD[setIdx], accum[setIdx], missCounter[setIdx]);
+			
+			missCounter[setIdx]++;
+			if(missCounter[setIdx]==8) {
+				//info("r:%d a:%d m:%d", RD[setIdx], accum[setIdx], missCounter[setIdx]);
 				for(auto ci = cands.begin(); ci != cands.end(); ci.inc())
 					if(ageCounter[*ci]<4)
 						ageCounter[*ci]++;
-			
-				RD = accum >> 1;
-				accum = 0;
-				missCounter = 0;
+				RD[setIdx] = accum[setIdx] >> 1;
+				accum[setIdx] = 0;
+				missCounter[setIdx] = 0;
 			}
 			
 			
@@ -76,13 +88,13 @@ class RLRReplPolicy : public ReplPolicy {
 			uint32_t minP = (1>>31)-1;
 			
 			for (auto ci = cands.begin(); ci != cands.end(); ci.inc()) {
-				if(ageCounter[*ci] > RD)Pa = 0;
+				if(ageCounter[*ci] > RD[setIdx])Pa = 0;
 				else Pa = 8;
 
-				if(hitReg[*ci]>0) Ph = 1;
+				if(hitReg[*ci]) Ph = 1;
 				else Ph = 0;
 				
-				if(typeReg[*ci]>0) Pt = 1;
+				if(typeReg[*ci]) Pt = 1;
 				else Pt = 0;
 				
 				Pline = Pa+Pt+Ph;
