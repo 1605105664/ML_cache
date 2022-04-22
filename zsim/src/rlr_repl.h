@@ -58,14 +58,15 @@ class RLRReplPolicy : public ReplPolicy {
 			//hit register
 			hitReg[id] = hit;
 			
+			//info("update: id %d",id);
 			if(hit){
 				//age counter
 				uint32_t setIdx=id/candidates;
 				uint32_t begin = setIdx*candidates;
+				accum[setIdx] += ageCounter[id];
 				for(uint32_t i=begin;i<begin+candidates;i++)
 					if(ageCounter[i]<32)
 						ageCounter[i]++;
-				accum[setIdx] += ageCounter[id];
 				ageCounter[id] = 0;
 				
 				//RD
@@ -74,7 +75,6 @@ class RLRReplPolicy : public ReplPolicy {
 					RD[setIdx] = accum[setIdx] >> 4;
 					accum[setIdx] = 0;
 					hitCounter[setIdx] = 0;
-					//info("set %d, updated RD:%d", setIdx, RD[setIdx]);
 				}
 			}
 			hit = true;
@@ -89,7 +89,7 @@ class RLRReplPolicy : public ReplPolicy {
 			uint32_t bestCand = -1;
 			uint32_t Pa,Ph,Pt = 0;
 			uint32_t Pline;
-			uint32_t minP = (1>>31)-1;
+			uint32_t minP = UINT32_MAX;
 			
 			for (auto ci = cands.begin(); ci != cands.end(); ci.inc()) {
 				if(ageCounter[*ci] > RD[*ci/candidates])Pa = 0;
@@ -106,7 +106,7 @@ class RLRReplPolicy : public ReplPolicy {
 				//Recency approximation
 				if(ageCounter[*ci]==0) Pline--;
 				
-				//info("Cand %d have priority of %d", *ci, Pline);
+				//info("Cand %d, rd %d, age %d, hit %d, type %d", *ci, RD[*ci/candidates], ageCounter[*ci], hitReg[*ci], typeReg[*ci]);
 				if(Pline < minP) {
 					minP = Pline;
 					bestCand = (*ci);
