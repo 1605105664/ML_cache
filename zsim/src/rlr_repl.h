@@ -15,7 +15,6 @@ class RLRReplPolicy : public ReplPolicy {
         uint32_t* ageCounter;
         bool* hitReg;
         bool* typeReg;
-		uint32_t* recency;
 		
 
 		//set variables
@@ -28,20 +27,18 @@ class RLRReplPolicy : public ReplPolicy {
 		bool hit;
 		uint32_t numLines;
 		uint32_t candidates;
-		uint64_t timestamp;
 
 
 
     public:
         // add member methods here, refer to repl_policies.h
-        explicit RLRReplPolicy(uint32_t _numLines, uint32_t _candidates) : hit(true), numLines(_numLines), candidates(_candidates),timestamp(1){
+        explicit RLRReplPolicy(uint32_t _numLines, uint32_t _candidates) : hit(true), numLines(_numLines), candidates(_candidates){
             ageCounter = gm_calloc<uint32_t>(numLines);
 			for(uint32_t i=0;i<numLines;i++){
 				ageCounter[i] = 31;
 			}
             hitReg = gm_calloc<bool>(numLines);
             typeReg = gm_calloc<bool>(numLines);
-			recency = gm_calloc<uint32_t>(numLines);
 			
 			RD = gm_calloc<uint32_t>(numLines/candidates);
 			for(uint32_t i=0;i<numLines/candidates;i++){
@@ -59,13 +56,11 @@ class RLRReplPolicy : public ReplPolicy {
 			gm_free(RD);
 			gm_free(accum);
 			gm_free(hitCounter);
-			gm_free(recency);
         }
 		
 		void update(uint32_t id, const MemReq* req) {
 			//type register
 			bool isPrefetch = req->flags & MemReq::PREFETCH;
-			recency[id] = timestamp++;
 			if (isPrefetch) typeReg[id]=0;
 			else typeReg[id]=1;
 			
@@ -75,14 +70,11 @@ class RLRReplPolicy : public ReplPolicy {
 			//info("update: id %d",id);
 			
 			//age counter
-			uint32_t setIdx=id/candidates;
+			uint32_t setIdx = id/candidates;
 			uint32_t begin = setIdx*candidates;
 			
-			
-				
-				//RD
+			//RD
 			if(hit){
-				
 				accum[setIdx] += ageCounter[id];
 				hitCounter[setIdx]++;
 				if(hitCounter[setIdx]==32){
@@ -101,7 +93,6 @@ class RLRReplPolicy : public ReplPolicy {
 		void replaced(uint32_t id) {
 			hit = false;
 			ageCounter[id] = 0;
-			recency[id] = 0;
 		}
 		
 		template <typename C> inline uint32_t rank(const MemReq* req, C cands) {
@@ -109,7 +100,7 @@ class RLRReplPolicy : public ReplPolicy {
 			uint32_t Pa,Ph,Pt = 0;
 			uint32_t Pline;
 			uint32_t minP = UINT32_MAX;
-			//uint32_t maxRecency = 0;
+			uint32_t minAge = UINT32_MAX;
 			
 			for (auto ci = cands.begin(); ci != cands.end(); ci.inc()) {
 				if(ageCounter[*ci] > RD[*ci/candidates])Pa = 0;
@@ -121,23 +112,21 @@ class RLRReplPolicy : public ReplPolicy {
 				if(typeReg[*ci]) Pt = 1;
 				else Pt = 0;
 				
-				Pline = (Pa+Pt+Ph);
+				Pline = Pa+Pt+Ph;
 				
 				//Recency approximation
-				//if(ageCounter[*ci]==0) Pline--;
 				
 				//info("Cand %d, rd %d, age %d, hit %d, type %d", *ci, RD[*ci/candidates], ageCounter[*ci], hitReg[*ci], typeReg[*ci]);
-				// if (Pline == minP){
-				// 	if(maxRecency<recency[*ci]){
-				// 		maxRecency = recency[*ci];
-				// 		bestCand = (*ci);
-				// 	}
-				// }
-				// else 
-				if(Pline < minP) {
+				if (Pline == minP){
+				 	if(ageCounter[*ci] < minAge){
+				 		bestCand = (*ci);
+						minAge = ageCounter[*ci];
+				 	}
+				}
+				else if(Pline < minP) {
 					minP = Pline;
 					bestCand = (*ci);
-					//maxRecency = recency[*ci];
+					minAge = ageCounter[*ci];
 				}
 			}
 			//info("Cand %d with priority %d are evicted.", bestCand, minP);
