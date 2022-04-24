@@ -36,6 +36,10 @@ class RLRReplPolicy : public ReplPolicy {
             typeReg = gm_calloc<bool>(numLines);
 			
 			RD = gm_calloc<uint32_t>(numLines/candidates);
+			for(uint32_t i=0;i<numLines/candidates;i++){
+				RD[i] = 16;
+			}
+
 			accum = gm_calloc<uint32_t>(numLines/candidates);
 			hitCounter = gm_calloc<uint32_t>(numLines/candidates);
         }
@@ -59,17 +63,17 @@ class RLRReplPolicy : public ReplPolicy {
 			hitReg[id] = hit;
 			
 			//info("update: id %d",id);
-			if(hit){
-				//age counter
-				uint32_t setIdx=id/candidates;
-				uint32_t begin = setIdx*candidates;
-				accum[setIdx] += ageCounter[id];
-				for(uint32_t i=begin;i<begin+candidates;i++)
-					if(ageCounter[i]<32)
-						ageCounter[i]++;
-				ageCounter[id] = 0;
+			
+			//age counter
+			uint32_t setIdx=id/candidates;
+			uint32_t begin = setIdx*candidates;
+			
+			
 				
 				//RD
+			if(hit){
+				
+				accum[setIdx] += ageCounter[id];
 				hitCounter[setIdx]++;
 				if(hitCounter[setIdx]==32){
 					RD[setIdx] = accum[setIdx] >> 4;
@@ -77,6 +81,10 @@ class RLRReplPolicy : public ReplPolicy {
 					hitCounter[setIdx] = 0;
 				}
 			}
+			for(uint32_t i=begin;i<begin+candidates;i++)
+				if(ageCounter[i]<32)
+					ageCounter[i]++;
+			ageCounter[id] = 0;
 			hit = true;
 		}
 		
