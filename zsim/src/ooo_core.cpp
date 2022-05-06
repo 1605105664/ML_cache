@@ -52,7 +52,7 @@
 
 #define L1D_LAT 4  // fixed, and FilterCache does not include L1 delay
 #define FETCH_BYTES_PER_CYCLE 16
-#define ISSUES_PER_CYCLE 4
+#define ISSUES_PER_CYCLE 3
 #define RF_READS_PER_CYCLE 3
 
 OOOCore::OOOCore(FilterCache* _l1i, FilterCache* _l1d, g_string& _name) : Core(_name), l1i(_l1i), l1d(_l1d), cRec(0, _name) {
